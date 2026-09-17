@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 st.title("🧠 Yapay Zeka Kolektivizmi (Multi-Agent Consensus)")
-st.caption("Farklı yapay zeka modelleri tartışır, ortak paydayı bulur.")
+st.caption("Farklı ücretsiz yapay zeka modelleri tartışır, ortak paydayı bulur.")
 
 # 2. YAN MENÜ (API KEY VE MODEL SEÇİMİ)
 with st.sidebar:
@@ -23,24 +23,21 @@ with st.sidebar:
     st.divider()
     st.subheader("Ücretsiz Modeller")
     
-    # Tüm modelleri varsayılan olarak %100 ücretsiz olanlardan seçtik
-    agent1_model = st.selectbox(
-        "1. Ajan Modeli",
-        ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra:free", "openai/gpt-oss-20b:free", "openrouter/free"]
-    )
+    # Güncel ve tamamen ücretsiz OpenRouter modelleri
+    FREE_MODELS = [
+        "openrouter/free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "inclusionai/ling-3.0-flash-fin:free",
+        "cohere/north-mini-code:free",
+        "liquid/lfm-2.5-2.6b:free"
+    ]
     
-    agent2_model = st.selectbox(
-        "2. Ajan Modeli",
-        ["nvidia/nemotron-3-ultra:free", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "openrouter/free"]
-    )
-    
-    judge_model = st.selectbox(
-        "Konsensüs / Sentez Modeli",
-        ["openrouter/free", "google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra:free"]
-    )
+    agent1_model = st.selectbox("1. Ajan Modeli", FREE_MODELS, index=0)
+    agent2_model = st.selectbox("2. Ajan Modeli", FREE_MODELS, index=1)
+    judge_model = st.selectbox("Konsensüs / Sentez Modeli", FREE_MODELS, index=0)
 
 # 3. ANA UYGULAMA MANTIĞI
-prompt = st.text_area("Yapay zeka kuruluna sorunuzu yazın:", height=120, placeholder="Örn: Yapay zekanın tıp eğitimindeki geleceği ne olacak?")
+prompt = st.text_area("Yapay zeka kuruluna sorunuzu yazın:", height=120, placeholder="Örn: Yapay zeka doktorların yerini doldurabilir mi?")
 
 if st.button("Kolektif Akla Sor", type="primary"):
     if not api_key:
@@ -48,7 +45,6 @@ if st.button("Kolektif Akla Sor", type="primary"):
     elif not prompt.strip():
         st.warning("Lütfen bir soru yazın.")
     else:
-        # OpenRouter istemcisini ilklendir
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
@@ -96,7 +92,7 @@ if st.button("Kolektif Akla Sor", type="primary"):
             
             Görevin:
             1. İki yanıt arasındaki ortak noktaları ve çelişkileri analiz et.
-            2. Her iki tarafın da en doğru fikirlerini birleştirerek tek bir nihai 'Kolektif Konsensüs Raporu' oluştur.
+            2. Her iki tarafın da en doğru fikirlerini birleştirerek Türkçe olarak tek bir 'Kolektif Konsensüs Raporu' oluştur.
             """
 
             with st.spinner(f"Konsensüs Modeli (`{judge_model}`) sentezliyor..."):
