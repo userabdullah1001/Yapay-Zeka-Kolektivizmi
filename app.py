@@ -1,135 +1,111 @@
 import streamlit as st
+import os
 from openai import OpenAI
 
-st.set_page_config(page_title="Multi-LLM Debate & Consensus", layout="wide")
-st.title("🤖 Yapay Zeka Çapraz Değerlendirme ve Ortak Karar Arayüzü")
+# 1. SAYFA AYARLARI
+icon_path = os.path.join(os.path.dirname(__file__), 'app_icon.png')
+page_icon = icon_path if os.path.exists(icon_path) else "🧠"
 
-# Yan menüden OpenRouter API anahtarını alalım
-api_key = st.sidebar.text_input("OpenRouter API Key Girin:", type="password")
-
-if not api_key:
-    st.info("Devam etmek için lütfen yan menüden OpenRouter API anahtarınızı girin.")
-    st.stop()
-
-# OpenRouter istemcisi (OpenAI SDK'sı ile uyumludur)
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=api_key,
+st.set_page_config(
+    page_title="Yapay Zeka Kolektivizmi",
+    page_icon=page_icon,
+    layout="wide"
 )
 
-# Kullanılacak Modeller
-MODEL_A = "openai/gpt-4o"
-MODEL_B = "anthropic/claude-3.5-sonnet"
-# Hakem / Sentez Modeli
-SYNTHESIZER_MODEL = "openai/gpt-4o" 
+st.title("🧠 Yapay Zeka Kolektivizmi (Multi-Agent Consensus)")
+st.caption("Farklı yapay zeka modelleri tartışır, ortak paydayı bulur.")
 
-def get_llm_response(model: str, prompt: str) -> str:
-    """Belirtilen modele prompt gönderir ve yanıt döner."""
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}]
+# 2. YAN MENÜ (API KEY VE MODEL SEÇİMİ)
+with st.sidebar:
+    st.header("⚙️ Ayarlar")
+    api_key = st.text_input("OpenRouter API Key", type="password", help="sk-or-v1-... ile başlayan anahtarınızı girin")
+    
+    st.divider()
+    st.subheader("Ücretsiz Modeller")
+    
+    # Tüm modelleri varsayılan olarak %100 ücretsiz olanlardan seçtik
+    agent1_model = st.selectbox(
+        "1. Ajan Modeli",
+        ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra:free", "openai/gpt-oss-20b:free", "openrouter/free"]
+    )
+    
+    agent2_model = st.selectbox(
+        "2. Ajan Modeli",
+        ["nvidia/nemotron-3-ultra:free", "google/gemma-4-31b-it:free", "openai/gpt-oss-20b:free", "openrouter/free"]
+    )
+    
+    judge_model = st.selectbox(
+        "Konsensüs / Sentez Modeli",
+        ["openrouter/free", "google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra:free"]
+    )
+
+# 3. ANA UYGULAMA MANTIĞI
+prompt = st.text_area("Yapay zeka kuruluna sorunuzu yazın:", height=120, placeholder="Örn: Yapay zekanın tıp eğitimindeki geleceği ne olacak?")
+
+if st.button("Kolektif Akla Sor", type="primary"):
+    if not api_key:
+        st.error("Lütfen sol yan menüden OpenRouter API Key anahtarınızı girin!")
+    elif not prompt.strip():
+        st.warning("Lütfen bir soru yazın.")
+    else:
+        # OpenRouter istemcisini ilklendir
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
         )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Hata oluştu: {str(e)}"
 
-# Kullanıcı Girdisi
-user_prompt = st.text_area("Promptunuzu yazın:", height=100)
+        try:
+            # 1. Aşama: Ajanların Görüş Bildirmesi
+            st.subheader("💬 1. Aşama: Bağımsız Ajan Görüşleri")
+            col1, col2 = st.columns(2)
 
-if st.button("Modelleri Çalıştır, Değerlendir ve Sentezle", type="primary"):
-    if user_prompt.strip():
-        
-        # ==========================================
-        # 1. AŞAMA: İLK YANITLAR
-        # ==========================================
-        st.header("1. Aşama: Bağımsız Yanıtlar")
-        with st.spinner("Modeller ilk yanıtlarını üretiyor..."):
-            ans_a = get_llm_response(MODEL_A, user_prompt)
-            ans_b = get_llm_response(MODEL_B, user_prompt)
+            with col1:
+                st.markdown(f"**Ajan 1 (`{agent1_model}`):**")
+                with st.spinner("Ajan 1 yanıt üretiyor..."):
+                    res1 = client.chat.completions.create(
+                        model=agent1_model,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    ans1 = res1.choices[0].message.content
+                    st.info(ans1)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader(f"🔴 {MODEL_A}")
-            st.write(ans_a)
-        with col2:
-            st.subheader(f"🔵 {MODEL_B}")
-            st.write(ans_b)
+            with col2:
+                st.markdown(f"**Ajan 2 (`{agent2_model}`):**")
+                with st.spinner("Ajan 2 yanıt üretiyor..."):
+                    res2 = client.chat.completions.create(
+                        model=agent2_model,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    ans2 = res2.choices[0].message.content
+                    st.success(ans2)
 
-        st.divider()
-
-        # ==========================================
-        # 2. AŞAMA: ÇAPRAZ DEĞERLENDİRME
-        # ==========================================
-        st.header("2. Aşama: Çapraz Eleştiri ve Puanlama")
-        with st.spinner("Modeller birbirlerinin yanıtlarını inceliyor..."):
-            eval_prompt_for_a = f"""
-Soru: {user_prompt}
-
-Başka bir yapay zekanın bu soruya verdiği yanıt:
----
-{ans_b}
----
-
-Lütfen bu yanıtı doğruluk, mantık, eksiklikler ve netlik açısından değerlendir. 10 üzerinden puan ver, güçlü ve zayıf yönlerini belirt.
-"""
-            eval_prompt_for_b = f"""
-Soru: {user_prompt}
-
-Başka bir yapay zekanın bu soruya verdiği yanıt:
----
-{ans_a}
----
-
-Lütfen bu yanıtı doğruluk, mantık, eksiklikler ve netlik açısından değerlendir. 10 üzerinden puan ver, güçlü ve zayıf yönlerini belirt.
-"""
-
-            eval_a = get_llm_response(MODEL_A, eval_prompt_for_a)
-            eval_b = get_llm_response(MODEL_B, eval_prompt_for_b)
-
-        col3, col4 = st.columns(2)
-        with col3:
-            st.subheader(f"{MODEL_A}'nın Eleştirisi:")
-            st.info(eval_a)
-        with col4:
-            st.subheader(f"{MODEL_B}'nin Eleştirisi:")
-            st.warning(eval_b)
-
-        st.divider()
-
-        # ==========================================
-        # 3. AŞAMA: ORTAK KONSENSÜS / SENTEZ YANIT
-        # ==========================================
-        st.header("🎯 3. Aşama: Nihai Ortak Yanıt (Sentez)")
-        with st.spinner("Tüm yanıtlar ve eleştiriler harmanlanarak ortak karar oluşturuluyor..."):
+            # 2. Aşama: Sentez ve Konsensüs
+            st.divider()
+            st.subheader("🎯 2. Aşama: Kolektif Konsensüs & Sentez Raporu")
             
             synthesis_prompt = f"""
-Sen uzman bir hakem ve yapay zeka sentezleyicisisin.
+            Aşağıda bir kullanıcı sorusu ve iki farklı yapay zeka ajanının bu soruya verdiği yanıtlar verilmiştir.
+            
+            Kullanıcı Sorusu: {prompt}
+            
+            Ajan 1 Yanıtı:
+            {ans1}
+            
+            Ajan 2 Yanıtı:
+            {ans2}
+            
+            Görevin:
+            1. İki yanıt arasındaki ortak noktaları ve çelişkileri analiz et.
+            2. Her iki tarafın da en doğru fikirlerini birleştirerek tek bir nihai 'Kolektif Konsensüs Raporu' oluştur.
+            """
 
-KULLANICININ İLK SORUSU:
-{user_prompt}
+            with st.spinner(f"Konsensüs Modeli (`{judge_model}`) sentezliyor..."):
+                res_judge = client.chat.completions.create(
+                    model=judge_model,
+                    messages=[{"role": "user", "content": synthesis_prompt}]
+                )
+                final_consensus = res_judge.choices[0].message.content
+                st.markdown(final_consensus)
 
-----------------------------------------
-MODEL A ({MODEL_A}) YANITI:
-{ans_a}
-
-MODEL B'NİN MODEL A HAKKINDAKİ ELEŞTİRİSİ:
-{eval_b}
-----------------------------------------
-MODEL B ({MODEL_B}) YANITI:
-{ans_b}
-
-MODEL A'NIN MODEL B HAKKINDAKİ ELEŞTİRİSİ:
-{eval_a}
-----------------------------------------
-
-GÖREVİN:
-1. İki modelin doğru, güçlü ve faydalı noktalarını birleştir.
-2. Eleştirilerde tespit edilen hata, eksiklik veya yanlış yönlendirmeleri ayıkla.
-3. Kullanıcıya, her iki modelin de üzerinde uzlaşacağı, en doğru, eksiksiz, tutarlı ve net "NİHAİ ORTAK YANITI" sun.
-"""
-            consensus_answer = get_llm_response(SYNTHESIZER_MODEL, synthesis_prompt)
-
-        # Ortak yanıtı belirgin bir kutu içerisinde gösterelim
-        st.success("### 🏆 Konsensüs Yanıtı")
-        st.write(consensus_answer)
+        except Exception as e:
+            st.error(f"Bir hata oluştu: {str(e)}")
